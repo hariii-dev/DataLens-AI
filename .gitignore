@@ -1,0 +1,33 @@
+# Environment
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.log
+
+# Django
+db.sqlite3
+media/
+staticfiles/
+
+# Secrets
+access_token.txt
+
+# Testing
+.pytest_cache/
+.coverage
+
+# Editors
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# DataLens uploaded and generated files
+backend/cleaned/
+backend/datasets/user_*/
+backend/*.csv
