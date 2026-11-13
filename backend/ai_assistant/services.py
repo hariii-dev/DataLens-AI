@@ -55,3 +55,30 @@ USER QUESTION:
 
 Provide a clear, concise answer with relevant data evidence.
 """
+
+
+def generate_ai_response(prompt):
+    from django.conf import settings
+    from google import genai
+    from google.genai import types
+
+    if not settings.GEMINI_API_KEY:
+        raise ValueError("Gemini API key is missing.")
+
+    client = genai.Client(
+        api_key=settings.GEMINI_API_KEY
+    )
+
+    response = client.models.generate_content(
+        model=settings.GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.2,
+            max_output_tokens=1024
+        )
+    )
+
+    if not response.text:
+        raise RuntimeError("Gemini returned an empty response.")
+
+    return response.text.strip()

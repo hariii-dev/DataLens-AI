@@ -3,11 +3,18 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+import logging
 
 from datasets.models import Dataset
 from .models import AIConversation, AIMessage
 from .serializers import AIConversationSerializer, AIMessageSerializer
-from .services import build_dataset_context, build_ai_prompt
+from .services import (
+    build_dataset_context,
+    build_ai_prompt,
+    generate_ai_response
+)
+
+logger = logging.getLogger(__name__)
 
 
 class AIConversationListView(APIView):
@@ -51,7 +58,15 @@ class AIChatView(APIView):
             owner=request.user
         )
 
-        question = request.data.get('question', '').strip()
+        question = request.data.get('question', '')
+
+        if not isinstance(question, str):
+            return Response(
+                {'error': 'Question must be text.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        question = question.strip()
 
         if not question:
             return Response(
@@ -69,24 +84,40 @@ class AIChatView(APIView):
             context = build_dataset_context(conversation.dataset)
             prompt = build_ai_prompt(question, context)
 
-            user_message = AIMessage.objects.create(
-                conversation=conversation,
-                role='user',
-                content=question
-            )
-
-            conversation.updated_at = user_message.created_at
-            conversation.save(update_fields=['updated_at'])
-
-            return Response({
-                'conversation_id': conversation.id,
-                'message': AIMessageSerializer(user_message).data,
-                'prompt': prompt,
-                'ai_status': 'awaiting_provider'
-            })
-
-        except Exception as exc:
+        except Exception:
+            logger.exception('Dataset context preparation failed.')
             return Response(
                 {'error': 'Unable to prepare dataset context.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        try:
+            answer = generate_ai_response(prompt)
+
+        except Exception:
+            logger.exception('Gemini response generation failed.')
+            return Response(
+                {'error': 'AI service is temporarily unavailable.'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        user_message = AIMessage.objects.create(
+            conversation=conversation,
+            role='user',
+            content=question
+        )
+
+        assistant_message = AIMessage.objects.create(
+            conversation=conversation,
+            role='assistant',
+            content=answer
+        )
+
+        conversation.save(update_fields=['updated_at'])
+
+        return Response({
+            'conversation_id': conversation.id,
+            'user_message': AIMessageSerializer(user_message).data,
+            'assistant_message': AIMessageSerializer(assistant_message).data,
+            'ai_status': 'completed'
+        })

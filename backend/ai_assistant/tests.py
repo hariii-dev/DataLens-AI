@@ -1,4 +1,5 @@
 import tempfile
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
@@ -56,7 +57,10 @@ class AIConversationTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(AIConversation.objects.count(), 1)
 
-    def test_chat_creates_user_message(self):
+    @patch('ai_assistant.views.generate_ai_response')
+    def test_chat_creates_user_and_assistant_messages(self, mock_ai):
+        mock_ai.return_value = 'The average age is 23.5.'
+
         conversation = AIConversation.objects.create(
             owner=self.user,
             dataset=self.dataset
@@ -69,8 +73,31 @@ class AIConversationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(AIMessage.objects.count(), 1)
-        self.assertEqual(response.data['ai_status'], 'awaiting_provider')
+        self.assertEqual(AIMessage.objects.count(), 2)
+        self.assertEqual(response.data['ai_status'], 'completed')
+        self.assertEqual(
+            response.data['assistant_message']['content'],
+            'The average age is 23.5.'
+        )
+        mock_ai.assert_called_once()
+
+    @patch('ai_assistant.views.generate_ai_response')
+    def test_gemini_failure_returns_502(self, mock_ai):
+        mock_ai.side_effect = RuntimeError('Provider unavailable')
+
+        conversation = AIConversation.objects.create(
+            owner=self.user,
+            dataset=self.dataset
+        )
+
+        response = self.client.post(
+            f'/api/ai/conversations/{conversation.id}/chat/',
+            {'question': 'Show data'},
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(AIMessage.objects.count(), 0)
 
     def test_user_cannot_access_other_conversation(self):
         dataset = Dataset.objects.create(
