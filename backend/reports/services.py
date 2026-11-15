@@ -1,17 +1,194 @@
 from io import BytesIO
+from datetime import datetime
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 from reportlab.platypus import (
     SimpleDocTemplate,
     Paragraph,
     Spacer,
     Table,
     TableStyle,
+    PageBreak,
+    KeepTogether,
 )
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.charts.piecharts import Pie
+from reportlab.graphics.charts.barcharts import HorizontalBarChart
+from reportlab.graphics.charts.lineplots import LinePlot
 
 from analytics.services import generate_analytics
+
+
+NAVY = colors.HexColor('#172554')
+PURPLE = colors.HexColor('#6D5CE7')
+LIGHT = colors.HexColor('#EEF2FF')
+GREY = colors.HexColor('#64748B')
+GREEN = colors.HexColor('#059669')
+RED = colors.HexColor('#DC2626')
+
+
+def safe_text(value):
+    if value is None:
+        return 'N/A'
+    return escape(str(value))
+
+
+def format_number(value):
+    if value is None:
+        return 'N/A'
+
+    try:
+        return f'{float(value):,.2f}'
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def make_table(data, widths=None):
+    table = Table(data, colWidths=widths, repeatRows=1)
+
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#CBD5E1')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+         [colors.white, LIGHT]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+    ]))
+
+    return table
+
+
+def make_pie_chart(data, title):
+    valid = [
+        item for item in data
+        if item.get('value') is not None and item['value'] > 0
+    ][:6]
+
+    if not valid:
+        return None
+
+    drawing = Drawing(500, 180)
+
+    chart = Pie()
+    chart.x = 165
+    chart.y = 20
+    chart.width = 180
+    chart.height = 140
+    chart.data = [item['value'] for item in valid]
+    chart.labels = [
+        str(item['label']) for item in valid
+    ]
+    chart.sideLabels = True
+    chart.slices.strokeWidth = 0.5
+
+    drawing.add(chart)
+    return drawing
+
+
+def make_bar_chart(data, title):
+    valid = [
+        item for item in data
+        if item.get('value') is not None
+    ][:10]
+
+    if not valid:
+        return None
+
+    drawing = Drawing(500, 200)
+
+    chart = HorizontalBarChart()
+    chart.x = 155
+    chart.y = 35
+    chart.width = 310
+    chart.height = 150
+    chart.data = [[item['value'] for item in valid]]
+    chart.categoryAxis.categoryNames = [
+        str(item['label']) for item in valid
+    ]
+    chart.categoryAxis.labels.fontSize = 7
+    chart.valueAxis.labels.fontSize = 8
+    chart.valueAxis.valueMin = 0
+    chart.bars[0].fillColor = PURPLE
+    chart.barWidth = 14
+    chart.groupSpacing = 8
+
+    drawing.add(chart)
+    return drawing
+
+
+def make_line_chart(data):
+    values = [
+        item['value'] for item in data
+        if item.get('value') is not None
+    ][:50]
+
+    if len(values) < 2:
+        return None
+
+    drawing = Drawing(460, 180)
+
+    chart = LinePlot()
+    chart.x = 45
+    chart.y = 35
+    chart.width = 380
+    chart.height = 120
+    chart.data = [[(i + 1, value) for i, value in enumerate(values)]]
+    chart.lines[0].strokeColor = PURPLE
+    chart.lines[0].strokeWidth = 2
+    chart.xValueAxis.valueMin = 1
+    chart.xValueAxis.valueMax = len(values)
+    chart.xValueAxis.valueSteps = [
+        max(1, len(values) // 5)
+    ]
+    chart.yValueAxis.labelTextFormat = '%.1f'
+    chart.xValueAxis.labels.fontSize = 7
+    chart.yValueAxis.labels.fontSize = 7
+
+    drawing.add(chart)
+    return drawing
+
+
+def draw_page(canvas, document):
+    canvas.saveState()
+
+    width, height = A4
+    page = canvas.getPageNumber()
+
+    if page > 1:
+        canvas.setStrokeColor(colors.HexColor('#E2E8F0'))
+        canvas.line(40, height - 32, width - 40, height - 32)
+
+        canvas.setFont('Helvetica-Bold', 8)
+        canvas.setFillColor(NAVY)
+        canvas.drawString(40, height - 25, 'DATALENS AI')
+
+        canvas.setFont('Helvetica', 8)
+        canvas.setFillColor(GREY)
+        canvas.drawRightString(
+            width - 40, height - 25, 'Analytics Report'
+        )
+
+    canvas.setStrokeColor(colors.HexColor('#E2E8F0'))
+    canvas.line(40, 32, width - 40, 32)
+
+    canvas.setFont('Helvetica', 8)
+    canvas.setFillColor(GREY)
+    canvas.drawString(40, 20, 'Generated by DataLens AI')
+    canvas.drawRightString(width - 40, 20, f'Page {page}')
+
+    canvas.restoreState()
 
 
 def generate_pdf_report(dataset):
@@ -23,73 +200,382 @@ def generate_pdf_report(dataset):
         pagesize=A4,
         rightMargin=40,
         leftMargin=40,
-        topMargin=40,
-        bottomMargin=40,
+        topMargin=48,
+        bottomMargin=48,
+        title=f'{dataset.name} - DataLens AI Report',
+        author='DataLens AI',
     )
 
     styles = getSampleStyleSheet()
+
+    styles.add(ParagraphStyle(
+        name='SectionTitle',
+        parent=styles['Heading2'],
+        textColor=NAVY,
+        fontSize=15,
+        spaceBefore=14,
+        spaceAfter=10,
+    ))
+
+    styles.add(ParagraphStyle(
+        name='SmallText',
+        parent=styles['Normal'],
+        fontSize=9,
+        leading=13,
+        textColor=GREY,
+    ))
+
+    styles.add(ParagraphStyle(
+        name='CoverTitle',
+        parent=styles['Title'],
+        fontSize=29,
+        leading=36,
+        textColor=NAVY,
+        alignment=TA_CENTER,
+    ))
+
     elements = []
 
-    elements.append(
-        Paragraph("DataLens AI - Analytics Report", styles['Title'])
-    )
-    elements.append(Spacer(1, 15))
+    rows = analytics['total_rows']
+    columns = analytics['total_columns']
+    missing = analytics['missing_values']
+    duplicates = analytics['duplicate_rows']
+    numeric = analytics['numeric_statistics']
+    categorical = analytics['categorical_statistics']
+    quality = analytics['column_quality']
+    chart_data = analytics['chart_data']
+    correlation = analytics['correlation']
 
-    elements.append(
-        Paragraph(f"Dataset: {dataset.name}", styles['Heading2'])
-    )
-    elements.append(
-        Paragraph(f"Total Rows: {analytics['total_rows']}", styles['Normal'])
-    )
-    elements.append(
-        Paragraph(f"Total Columns: {analytics['total_columns']}", styles['Normal'])
-    )
-    elements.append(Spacer(1, 20))
+    # COVER PAGE
+    elements.append(Spacer(1, 1.2 * inch))
+    elements.append(Paragraph('DATALENS AI', styles['CoverTitle']))
+    elements.append(Spacer(1, 12))
 
-    elements.append(
-        Paragraph("Numeric Statistics", styles['Heading2'])
-    )
+    elements.append(Paragraph(
+        'DATA ANALYTICS REPORT',
+        ParagraphStyle(
+            'CoverSubtitle',
+            parent=styles['Heading2'],
+            alignment=TA_CENTER,
+            textColor=PURPLE,
+            fontSize=16,
+        )
+    ))
 
-    table_data = [
-        ['Column', 'Mean', 'Median', 'Minimum', 'Maximum']
+    elements.append(Spacer(1, 35))
+
+    cover_data = [
+        ['DATASET', safe_text(dataset.name)],
+        ['GENERATED ON', datetime.now().strftime('%d %B %Y')],
+        ['TOTAL ROWS', f'{rows:,}'],
+        ['TOTAL COLUMNS', f'{columns:,}'],
     ]
 
-    for column, stats in analytics['numeric_statistics'].items():
-        table_data.append([
-            column,
-            str(stats['mean']),
-            str(stats['median']),
-            str(stats['minimum']),
-            str(stats['maximum']),
-        ])
-
-    table = Table(table_data, repeatRows=1)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('PADDING', (0, 0), (-1, -1), 6),
+    cover_table = Table(cover_data, colWidths=[130, 300])
+    cover_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), NAVY),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.white),
+        ('BACKGROUND', (1, 0), (1, -1), LIGHT),
+        ('TEXTCOLOR', (1, 0), (1, -1), NAVY),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.white),
+        ('PADDING', (0, 0), (-1, -1), 12),
     ]))
 
-    elements.append(table)
+    elements.append(cover_table)
+    elements.append(Spacer(1, 45))
+
+    elements.append(Paragraph(
+        'Comprehensive insights, statistical analysis, '
+        'data quality assessment and visual exploration.',
+        ParagraphStyle(
+            'CoverDescription',
+            parent=styles['Normal'],
+            alignment=TA_CENTER,
+            textColor=GREY,
+            fontSize=10,
+            leading=16,
+        )
+    ))
+
+    elements.append(PageBreak())
+
+    # EXECUTIVE SUMMARY
+    elements.append(Paragraph(
+        'Executive Summary', styles['SectionTitle']
+    ))
+
+    elements.append(Paragraph(
+        f'This report analyzes <b>{safe_text(dataset.name)}</b>, '
+        f'containing <b>{rows:,} rows</b> and '
+        f'<b>{columns:,} columns</b>. '
+        f'The dataset contains {len(numeric)} numeric columns '
+        f'and {len(categorical)} categorical columns. '
+        f'The analysis identified {missing:,} missing values '
+        f'and {duplicates:,} duplicate rows.',
+        styles['Normal']
+    ))
+
+    elements.append(Spacer(1, 15))
+
+    kpi_data = [
+        ['TOTAL ROWS', 'TOTAL COLUMNS', 'MISSING VALUES', 'DUPLICATES'],
+        [
+            f'{rows:,}',
+            f'{columns:,}',
+            f'{missing:,}',
+            f'{duplicates:,}',
+        ],
+    ]
+
+    kpi_table = Table(kpi_data, colWidths=[125] * 4)
+    kpi_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('BACKGROUND', (0, 1), (-1, 1), LIGHT),
+        ('TEXTCOLOR', (0, 1), (-1, 1), PURPLE),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 7),
+        ('FONTSIZE', (0, 1), (-1, 1), 15),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('PADDING', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.white),
+    ]))
+
+    elements.append(kpi_table)
     elements.append(Spacer(1, 20))
 
-    elements.append(
-        Paragraph("Categorical Statistics", styles['Heading2'])
+    # DATA QUALITY
+    elements.append(Paragraph(
+        'Data Quality Assessment', styles['SectionTitle']
+    ))
+
+    quality_data = [
+        ['Column', 'Data Type', 'Missing', 'Missing %']
+    ]
+
+    for name, info in quality.items():
+        quality_data.append([
+            Paragraph(safe_text(name), styles['SmallText']),
+            safe_text(info['data_type']),
+            str(info['missing_values']),
+            f"{info['missing_percentage']}%",
+        ])
+
+    if len(quality_data) == 1:
+        quality_data.append(['No columns', '-', '-', '-'])
+
+    elements.append(make_table(
+        quality_data, [155, 115, 75, 85]
+    ))
+
+    elements.append(Spacer(1, 15))
+
+    # NUMERIC STATISTICS
+    elements.append(Paragraph(
+        'Numeric Statistics', styles['SectionTitle']
+    ))
+
+    numeric_data = [[
+        'Column', 'Mean', 'Median', 'Mode',
+        'Minimum', 'Maximum', 'Std Dev',
+    ]]
+
+    for name, stats in numeric.items():
+        numeric_data.append([
+            Paragraph(safe_text(name), styles['SmallText']),
+            format_number(stats['mean']),
+            format_number(stats['median']),
+            format_number(stats['mode']),
+            format_number(stats['minimum']),
+            format_number(stats['maximum']),
+            format_number(stats['standard_deviation']),
+        ])
+
+    if len(numeric_data) == 1:
+        numeric_data.append(['No numeric columns', '', '', '', '', '', ''])
+
+    elements.append(make_table(
+        numeric_data,
+        [95, 65, 65, 65, 65, 65, 65]
+    ))
+
+    elements.append(Spacer(1, 12))
+
+    quartile_data = [['Column', 'Q1 (25%)', 'Median', 'Q3 (75%)']]
+
+    for name, stats in numeric.items():
+        quartile_data.append([
+            Paragraph(safe_text(name), styles['SmallText']),
+            format_number(stats['q1']),
+            format_number(stats['median']),
+            format_number(stats['q3']),
+        ])
+
+    if len(quartile_data) == 1:
+        quartile_data.append(['No numeric columns', '', '', ''])
+
+    elements.append(make_table(
+        quartile_data, [180, 90, 90, 90]
+    ))
+
+    # CATEGORICAL STATISTICS
+    elements.append(Paragraph(
+        'Categorical Statistics', styles['SectionTitle']
+    ))
+
+    category_data = [[
+        'Column', 'Unique Values', 'Most Common', 'Occurrences'
+    ]]
+
+    for name, stats in categorical.items():
+        category_data.append([
+            Paragraph(safe_text(name), styles['SmallText']),
+            str(stats['unique_values']),
+            Paragraph(safe_text(stats['most_common']), styles['SmallText']),
+            str(stats['most_common_count']),
+        ])
+
+    if len(category_data) == 1:
+        category_data.append(['No categorical columns', '', '', ''])
+
+    elements.append(make_table(
+        category_data, [125, 90, 155, 75]
+    ))
+
+    # VISUAL ANALYSIS
+    elements.append(PageBreak())
+    elements.append(Paragraph(
+        'Visual Analysis', styles['SectionTitle']
+    ))
+
+    for name, data in chart_data.items():
+        if name in categorical:
+            pie = make_pie_chart(data, name)
+            bar = make_bar_chart(data, name)
+
+            chart_group = [
+                Paragraph(
+                    safe_text(name), styles['Heading3']
+                ),
+            ]
+
+            if pie:
+                chart_group.extend([
+                    Paragraph(
+                        'Category Distribution',
+                        styles['SmallText']
+                    ),
+                    pie,
+                ])
+
+            if bar:
+                chart_group.extend([
+                    Paragraph(
+                        'Category Comparison',
+                        styles['SmallText']
+                    ),
+                    bar,
+                ])
+
+            if len(chart_group) > 1:
+                elements.append(KeepTogether(chart_group))
+
+            elements.append(Spacer(1, 6))
+
+        elif name in numeric:
+            line = make_line_chart(data)
+
+            if line:
+                elements.append(KeepTogether([
+                    Paragraph(
+                        safe_text(name) + ' - Trend',
+                        styles['Heading3']
+                    ),
+                    line,
+                ]))
+                elements.append(Spacer(1, 10))
+
+    # CORRELATION HEATMAP
+    if correlation:
+        elements.append(PageBreak())
+        elements.append(Paragraph(
+            'Correlation Analysis', styles['SectionTitle']
+        ))
+
+        elements.append(Paragraph(
+            'Correlation values range from -1 to +1. '
+            'Values closer to +1 indicate positive relationships, '
+            'while values closer to -1 indicate negative relationships. '
+            'Correlation does not establish causation.',
+            styles['SmallText']
+        ))
+
+        elements.append(Spacer(1, 12))
+
+        corr_columns = list(correlation.keys())
+
+        if corr_columns:
+            heatmap_data = [
+                ['Column'] + [
+                    Paragraph(safe_text(name), styles['SmallText'])
+                    for name in corr_columns
+                ]
+            ]
+
+            for row_name in corr_columns:
+                row = [Paragraph(safe_text(row_name), styles['SmallText'])]
+
+                for col_name in corr_columns:
+                    value = correlation.get(row_name, {}).get(col_name)
+                    row.append(
+                        format_number(value)
+                    )
+
+                heatmap_data.append(row)
+
+            col_width = min(75, 420 / (len(corr_columns) + 1))
+            heatmap = Table(
+                heatmap_data,
+                colWidths=[col_width] * (len(corr_columns) + 1),
+                repeatRows=1,
+            )
+
+            commands = [
+                ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('BACKGROUND', (0, 1), (0, -1), LIGHT),
+                ('GRID', (0, 0), (-1, -1), 0.4, colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTSIZE', (0, 0), (-1, -1), 7),
+                ('PADDING', (0, 0), (-1, -1), 6),
+            ]
+
+            for i, row_name in enumerate(corr_columns, start=1):
+                for j, col_name in enumerate(corr_columns, start=1):
+                    value = correlation.get(row_name, {}).get(col_name)
+
+                    if value is not None:
+                        if value >= 0.7:
+                            shade = colors.HexColor('#A7F3D0')
+                        elif value <= -0.7:
+                            shade = colors.HexColor('#FECACA')
+                        else:
+                            shade = colors.HexColor('#E2E8F0')
+
+                        commands.append((
+                            'BACKGROUND', (j, i), (j, i), shade
+                        ))
+
+            heatmap.setStyle(TableStyle(commands))
+            elements.append(heatmap)
+
+    document.build(
+        elements,
+        onFirstPage=draw_page,
+        onLaterPages=draw_page,
     )
 
-    for column, stats in analytics['categorical_statistics'].items():
-        elements.append(
-            Paragraph(
-                f"{column}: {stats['unique_values']} unique values; "
-                f"Most common: {stats['most_common']} "
-                f"({stats['most_common_count']} occurrences)",
-                styles['Normal']
-            )
-        )
-        elements.append(Spacer(1, 6))
-
-    document.build(elements)
     buffer.seek(0)
-
     return buffer
