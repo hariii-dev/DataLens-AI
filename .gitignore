@@ -31,3 +31,4 @@ access_token.txt
 backend/cleaned/
 backend/datasets/user_*/
 backend/*.csv
+backend/reports/dataset_4_report*.pdf
