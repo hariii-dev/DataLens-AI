@@ -762,3 +762,22 @@ td {
   font-size: 12px;
   font-weight: 600;
 }
+
+.ai-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  cursor: pointer;
+}
+
+.ai-delete-button:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #f87171;
+}

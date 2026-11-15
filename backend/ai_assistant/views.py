@@ -121,3 +121,21 @@ class AIChatView(APIView):
             'assistant_message': AIMessageSerializer(assistant_message).data,
             'ai_status': 'completed'
         })
+
+
+class AIConversationDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        conversation = get_object_or_404(
+            AIConversation,
+            pk=pk,
+            owner=request.user
+        )
+
+        conversation.delete()
+
+        return Response(
+            {'message': 'Conversation deleted successfully.'},
+            status=status.HTTP_200_OK
+        )

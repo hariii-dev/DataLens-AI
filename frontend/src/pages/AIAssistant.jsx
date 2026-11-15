@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Sparkles,
   User,
+  Trash2,
 } from 'lucide-react';
 import api from '../api/axios';
 
@@ -82,6 +83,28 @@ export default function AIAssistant() {
     setActiveConversation(conversation);
     setError('');
   };
+  const deleteConversation = async () => {
+    if (!activeConversation || sending) return;
+
+    const confirmed = window.confirm(
+      `Delete "${activeConversation.title}"? This conversation and its messages will be permanently deleted.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setError("");
+      await api.delete(`ai/conversations/${activeConversation.id}/`);
+      setConversations((previous) =>
+        previous.filter((item) => item.id !== activeConversation.id)
+      );
+      setActiveConversation(null);
+      setQuestion("");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Unable to delete conversation.");
+    }
+  };
+
 
   const sendMessage = async (event) => {
     event.preventDefault();
@@ -232,7 +255,7 @@ export default function AIAssistant() {
                   <h2>{activeConversation.title}</h2>
                   <p>Dataset ID: {activeConversation.dataset}</p>
                 </div>
-                <Bot size={25} />
+                <button type="button" className="ai-delete-button" onClick={deleteConversation} disabled={sending} aria-label="Delete conversation" title="Delete conversation"><Trash2 size={19} /></button>
               </div>
 
               <div className="ai-messages">
