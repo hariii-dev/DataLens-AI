@@ -11,6 +11,7 @@ export default function Analytics() {
   const [datasets, setDatasets] = useState([]);
   const [datasetId, setDatasetId] = useState('');
   const [analytics, setAnalytics] = useState(null);
+  const [isViewingHistory, setIsViewingHistory] = useState(false);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -72,7 +73,14 @@ export default function Analytics() {
       setError('Unable to delete analysis history.');
     }
   };
-
+  const viewHistory = (item) => {
+  setAnalytics(item.result);
+    setIsViewingHistory(true);
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth',
+    });
+  };
   if (loading) {
     return <div className="page-loading">Loading analytics...</div>;
   }
@@ -125,6 +133,7 @@ export default function Analytics() {
 
       {analytics && (
         <>
+          {isViewingHistory && <p className="history-badge">Viewing Previous Analysis</p>}
           <section className="stats-grid">
             <article className="stat-card">
               <BarChart3 />
@@ -282,14 +291,14 @@ export default function Analytics() {
         ) : (
           <div className="dataset-list">
             {history.map((item) => (
-              <article className="dataset-item" key={item.id}>
+              <article className="dataset-item" key={item.id} onClick={() => viewHistory(item)} style={{ cursor: "pointer" }}>
                 <div>
                   <h3>{item.dataset_name}</h3>
                   <p>{new Date(item.created_at).toLocaleString()}</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => deleteHistory(item.id)}
+                  onClick={(event) => { event.stopPropagation(); deleteHistory(item.id); }}
                   title="Delete history"
                 >
                   <Trash2 size={18} />
