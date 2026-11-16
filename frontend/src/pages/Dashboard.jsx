@@ -104,6 +104,9 @@ export default function Dashboard() {
             subscription?.name ||
             'Free Plan'}
         </p>
+        <Link to="/subscription" className="secondary-button">
+          Manage Subscription
+        </Link>
       </section>
     </main>
   );

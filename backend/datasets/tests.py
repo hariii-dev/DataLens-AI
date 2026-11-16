@@ -89,7 +89,7 @@ class DatasetAPITests(TestCase):
         free_plan = SubscriptionPlan.objects.create(
             name='Free',
             price=0,
-            max_datasets=5,
+            max_datasets=10,
             max_upload_size_mb=10,
             ai_queries_per_month=50
         )
@@ -99,7 +99,7 @@ class DatasetAPITests(TestCase):
             plan=free_plan
         )
 
-        for number in range(5):
+        for number in range(10):
             Dataset.objects.create(
                 owner=self.user,
                 name=f'Dataset {number}',
@@ -115,9 +115,9 @@ class DatasetAPITests(TestCase):
         response = self.client.post(
             '/api/datasets/',
             {
-                'name': 'Sixth Dataset',
+                'name': 'Eleventh Dataset',
                 'file': SimpleUploadedFile(
-                    'sixth.csv',
+                    'eleventh.csv',
                     b'name,age\nKumar,25\n',
                     content_type='text/csv'
                 )
@@ -131,7 +131,7 @@ class DatasetAPITests(TestCase):
         free_plan = SubscriptionPlan.objects.create(
             name='Free',
             price=0,
-            max_datasets=5,
+            max_datasets=10,
             max_upload_size_mb=10,
             ai_queries_per_month=50
         )

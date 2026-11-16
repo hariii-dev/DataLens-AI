@@ -13,6 +13,7 @@ import DatasetCleaning from './pages/DatasetCleaning';
 import Analytics from './pages/Analytics';
 import AIAssistant from './pages/AIAssistant';
 import Reports from './pages/Reports';
+import Subscription from './pages/Subscription';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/ai-assistant" element={<AIAssistant />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/subscription" element={<Subscription />} />
             <Route path="/datasets" element={<DatasetList />} />
             <Route path="/datasets/upload" element={<Datasets />} />
             <Route path="/datasets/:id" element={<DatasetPreview />} />

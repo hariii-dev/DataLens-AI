@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 class SubscriptionPlan(models.Model):
     name = models.CharField(max_length=100, unique=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    max_datasets = models.PositiveIntegerField(default=5)
+    max_datasets = models.PositiveIntegerField(default=10)
     max_upload_size_mb = models.PositiveIntegerField(default=10)
     ai_queries_per_month = models.PositiveIntegerField(default=50)
     is_active = models.BooleanField(default=True)

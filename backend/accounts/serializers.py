@@ -22,7 +22,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     name='Free',
     defaults={
         'price': 0,
-        'max_datasets': 5,
+        'max_datasets': 10,
         'max_upload_size_mb': 10,
         'ai_queries_per_month': 50,
     }
