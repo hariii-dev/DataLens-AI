@@ -1,6 +1,7 @@
+import ReactMarkdown from 'react-markdown';
+import GeminiIcon from '../components/GeminiIcon';
 import { useEffect, useState } from 'react';
 import {
-  Bot,
   Send,
   Plus,
   MessageSquare,
@@ -64,7 +65,6 @@ export default function AIAssistant() {
 
       const response = await api.post('ai/conversations/', {
         dataset: Number(selectedDataset),
-        title: 'New AI Conversation',
       });
 
       const conversation = {
@@ -133,6 +133,9 @@ export default function AIAssistant() {
 
       const updatedConversation = {
         ...activeConversation,
+        title: activeConversation.messages.some((message) => message.role === "user")
+          ? activeConversation.title
+          : (trimmedQuestion.length > 50 ? `${trimmedQuestion.slice(0, 47)}...` : trimmedQuestion),
         messages: newMessages,
       };
 
@@ -209,7 +212,7 @@ export default function AIAssistant() {
           {!activeConversation ? (
             <div className="ai-welcome">
               <div className="ai-welcome-icon">
-                <Bot size={36} />
+                <GeminiIcon size={36} />
               </div>
 
               <h2>How can I help you?</h2>
@@ -270,7 +273,7 @@ export default function AIAssistant() {
                       {message.role === 'user' ? (
                         <User size={18} />
                       ) : (
-                        <Bot size={18} />
+                        <GeminiIcon size={18} />
                       )}
                     </div>
 
@@ -278,14 +281,14 @@ export default function AIAssistant() {
                       <strong>
                         {message.role === 'user' ? 'You' : 'Gemini AI'}
                       </strong>
-                      <p>{message.content}</p>
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
                     </div>
                   </div>
                 ))}
 
                 {sending && (
                   <div className="ai-typing">
-                    <Bot size={18} /> Gemini is thinking...
+                    <GeminiIcon size={18} /> Gemini is thinking...
                   </div>
                 )}
               </div>

@@ -54,6 +54,10 @@ USER QUESTION:
 {question}
 
 Provide a clear, concise answer with relevant data evidence.
+For calculated numeric results, round to at most 2 decimal places.
+Never display floating-point precision artifacts.
+Keep counts as whole numbers.
+Do not unnecessarily round original dataset values.
 """
 
 

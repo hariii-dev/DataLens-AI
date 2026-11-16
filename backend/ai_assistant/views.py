@@ -101,6 +101,11 @@ class AIChatView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY
             )
 
+        if not conversation.messages.filter(role="user").exists():
+            conversation.title = (
+                question[:47] + "..." if len(question) > 50 else question
+            )
+
         user_message = AIMessage.objects.create(
             conversation=conversation,
             role='user',
@@ -113,7 +118,7 @@ class AIChatView(APIView):
             content=answer
         )
 
-        conversation.save(update_fields=['updated_at'])
+        conversation.save(update_fields=['title', 'updated_at'])
 
         return Response({
             'conversation_id': conversation.id,
